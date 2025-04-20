@@ -1,4 +1,8 @@
-FROM python:3.10-slim
+FROM python:3.9-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1  # Prevents Python from writing pyc files
+ENV PYTHONUNBUFFERED 1      # Prevents Python from buffering stdout and stderr
 
 WORKDIR /app
 
@@ -24,10 +28,9 @@ RUN chmod -R 777 data media staticfiles
 # Collect static files
 RUN python manage.py collectstatic --noinput
 
-# Make start script executable
-COPY start.sh .
-RUN chmod +x start.sh
-
+# Expose the port the app runs on
 EXPOSE 8000
 
-CMD ["./start.sh"] 
+# Define the command to run the application using Gunicorn
+# Adjust the number of workers as needed
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "core.wsgi:application"] 

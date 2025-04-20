@@ -41,6 +41,7 @@ INSTALLED_APPS = [
   "rest_framework",
   "corsheaders",
   "files",
+  "django_filters",
 ]
 
 MIDDLEWARE = [
@@ -143,6 +144,9 @@ REST_FRAMEWORK = {
         'rest_framework.parsers.JSONParser',
         'rest_framework.parsers.MultiPartParser',
         'rest_framework.parsers.FormParser',
+    ],
+    'DEFAULT_FILTER_BACKENDS': [
+        'django_filters.rest_framework.DjangoFilterBackend'
     ],
 }
 

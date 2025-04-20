@@ -1,48 +1,41 @@
 from rest_framework import serializers
-from django.core.exceptions import ValidationError as DjangoValidationError
-from .models import File
-
-# Define the size limit (e.g., 10MB)
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024
+from .models import File, PhysicalFile
 
 class FileSerializer(serializers.ModelSerializer):
-    """ Serializer for the File model. """
-    # file_url = serializers.ReadOnlyField() # Changed from ReadOnlyField
-    file_url = serializers.SerializerMethodField() # Use MethodField to build absolute URL
+    """ Serializer for the File (logical file) model. """
+    file_url = serializers.SerializerMethodField()
+    size = serializers.ReadOnlyField(source='physical_file.size')
+    content_type = serializers.ReadOnlyField(source='physical_file.content_type')
+    # Field to indicate if it's a known duplicate (optional, might impact performance)
+    # is_duplicate = serializers.ReadOnlyField()
+
+    # Make physical_file writeable by primary key for the view's create logic
+    physical_file = serializers.PrimaryKeyRelatedField(queryset=PhysicalFile.objects.all(), write_only=True)
+    # Expose original_name for reading and potentially writing if needed directly
+    original_name = serializers.CharField(max_length=255)
 
     class Meta:
         model = File
         fields = [
             'id',
-            'name',
-            'file',      # Note: This might expose internal path, consider carefully
-            'file_url',  # Public absolute URL
-            'size',
-            'content_type',
-            'uploaded_at'
+            'original_name', # Use original_name from the model
+            'physical_file', # Write-only FK field
+            'file_url',      # Read-only absolute URL (via method field)
+            'size',          # Read-only from PhysicalFile
+            'content_type',  # Read-only from PhysicalFile
+            'uploaded_at',   # Read-only from File
+            # 'is_duplicate' # Optional field
         ]
-        read_only_fields = ['id', 'size', 'content_type', 'uploaded_at', 'file_url'] # Add id and file_url here too
-
-    def validate_file(self, value):
-        """ Check if the uploaded file size exceeds the limit. """
-        if value.size > MAX_UPLOAD_SIZE:
-            raise serializers.ValidationError(f"File size cannot exceed {MAX_UPLOAD_SIZE // 1024 // 1024}MB.")
-        return value
+        # Read-only fields for the API response (excluding write-only physical_file FK)
+        read_only_fields = ['id', 'file_url', 'size', 'content_type', 'uploaded_at', 'is_duplicate']
 
     def get_file_url(self, obj):
-        """ Build the absolute URL for the file. """
+        """ Build the absolute URL using the physical file. """
         request = self.context.get('request')
-        if obj.file and request:
-            return request.build_absolute_uri(obj.file.url)
-        return None # Return None if file or request is not available
+        # Access url via the physical_file relation
+        if obj.physical_file and obj.physical_file.file and request:
+            return request.build_absolute_uri(obj.physical_file.file.url)
+        return None
 
-    def create(self, validated_data):
-        """ Override create to potentially set content_type from uploaded file. """
-        uploaded_file = self.context['request'].FILES.get('file')
-        if uploaded_file:
-            validated_data['content_type'] = uploaded_file.content_type
-            # validated_data['size'] = uploaded_file.size # Size is set in model's save
-            if 'name' not in validated_data or not validated_data['name']: # Set name from filename if not provided
-                 validated_data['name'] = uploaded_file.name
-
-        return super().create(validated_data) 
+    # Removed validate_file - validation now happens before PhysicalFile creation in the view
+    # Removed custom create - view now handles PhysicalFile lookup/creation and passes FK 

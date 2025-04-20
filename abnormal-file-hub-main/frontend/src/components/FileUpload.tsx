@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { uploadFile, ApiFile } from '../services/api';
@@ -12,36 +12,47 @@ interface FileUploadProps {
 export const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const queryClient = useQueryClient();
+  // Create a ref for the file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Mutation for uploading the file
   const uploadMutation = useMutation<ApiFile, Error, File>({
     mutationFn: uploadFile,
     onSuccess: (data) => {
-      toast.success(`File "${data.name}" uploaded successfully!`);
+      toast.success(`File "${data.original_name}" uploaded successfully!`);
       queryClient.invalidateQueries({ queryKey: ['files'] });
-      setSelectedFile(null); // Clear selection
-      onUploadSuccess(); // Notify parent component
+      setSelectedFile(null);
+      // Reset file input value
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      onUploadSuccess();
+      // Explicitly reset the mutation state after success
+      uploadMutation.reset();
     },
     onError: (error) => {
       // Extract backend validation error message if available
       let errorMessage = error.message;
       if (axios.isAxiosError(error) && error.response?.data) {
-          // Check common structures for DRF validation errors
           const responseData = error.response.data;
           if (typeof responseData === 'object' && responseData !== null) {
               if (responseData.detail) {
                   errorMessage = responseData.detail;
               } else if (responseData.file && Array.isArray(responseData.file) && responseData.file.length > 0) {
-                  // Handle field-specific errors (like our size validation)
                   errorMessage = responseData.file[0]; 
               } else {
-                  // Fallback for other structured errors
                   errorMessage = JSON.stringify(responseData);
               }
           }
       }
       toast.error(`Upload failed: ${errorMessage}`);
       console.error('Upload error:', error);
+      // Also reset file input value on error
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      // Also reset mutation state on error
+      uploadMutation.reset();
     },
   });
 
@@ -95,7 +106,15 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onUploadSuccess }) => {
               className="relative cursor-pointer bg-white rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500"
             >
               <span>Upload a file</span>
-              <input id="file-upload" name="file-upload" type="file" className="sr-only" onChange={handleFileChange} />
+              {/* Attach the ref to the input */}
+              <input 
+                ref={fileInputRef} 
+                id="file-upload" 
+                name="file-upload" 
+                type="file" 
+                className="sr-only" 
+                onChange={handleFileChange} 
+              />
             </label>
             <p className="pl-1">or drag and drop</p>
           </div>

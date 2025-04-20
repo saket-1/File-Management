@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { FileUpload } from './components/FileUpload';
 import { FileList } from './components/FileList';
+import { StorageStats } from './components/StorageStats';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Toaster } from 'react-hot-toast';
+import { useQueryClient } from '@tanstack/react-query';
 
 function App() {
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleUploadSuccess = () => {
     setRefreshKey(prev => prev + 1);
+    queryClient.invalidateQueries({ queryKey: ['storageStats'] });
   };
+
+  const queryClient = useQueryClient();
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -24,6 +29,9 @@ function App() {
         </div>
       </header>
       <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <div className="mb-6 bg-white shadow sm:rounded-lg">
+          <StorageStats />
+        </div>
         <div className="px-4 py-6 sm:px-0">
           <div className="space-y-6">
             <div className="bg-white shadow sm:rounded-lg">
