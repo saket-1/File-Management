@@ -7,9 +7,9 @@ class FileFilter(django_filters.FilterSet):
     # Filter by original filename (case-insensitive contains)
     original_name = django_filters.CharFilter(lookup_expr='icontains')
 
-    # Filter by content type (exact match, case-insensitive)
-    content_type = django_filters.CharFilter(
-        field_name='physical_file__content_type',
+    # Filter by file extension (case-insensitive exact match)
+    extension = django_filters.CharFilter(
+        field_name='physical_file__extension',
         lookup_expr='iexact'
     )
 
@@ -27,7 +27,7 @@ class FileFilter(django_filters.FilterSet):
         # Note: We defined custom filters above for more control, but could list basic fields here too.
         fields = [
             'original_name',
-            'content_type',
+            'extension',
             'min_size', 
             'max_size',
             'start_date',

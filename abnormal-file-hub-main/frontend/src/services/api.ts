@@ -23,6 +23,7 @@ export interface ApiFile {
   file_url: string;
   size: number;
   content_type: string;
+  extension: string;    // Add extension field
   uploaded_at: string;
   // is_duplicate?: boolean; // Optional: if exposed by serializer
 }
@@ -40,7 +41,7 @@ export interface StorageStats {
 // Note: Should match the keys defined in backend FileFilter
 interface ApiFileFilters {
   original_name?: string;
-  content_type?: string;
+  extension?: string; // Changed from content_type
   min_size?: number;
   max_size?: number;
   start_date?: string; // Expecting YYYY-MM-DD format

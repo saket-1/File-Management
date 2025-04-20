@@ -6,6 +6,7 @@ class FileSerializer(serializers.ModelSerializer):
     file_url = serializers.SerializerMethodField()
     size = serializers.ReadOnlyField(source='physical_file.size')
     content_type = serializers.ReadOnlyField(source='physical_file.content_type')
+    extension = serializers.ReadOnlyField(source='physical_file.extension')
     # Field to indicate if it's a known duplicate (optional, might impact performance)
     # is_duplicate = serializers.ReadOnlyField()
 
@@ -23,11 +24,12 @@ class FileSerializer(serializers.ModelSerializer):
             'file_url',      # Read-only absolute URL (via method field)
             'size',          # Read-only from PhysicalFile
             'content_type',  # Read-only from PhysicalFile
+            'extension',     # Add extension to fields
             'uploaded_at',   # Read-only from File
             # 'is_duplicate' # Optional field
         ]
         # Read-only fields for the API response (excluding write-only physical_file FK)
-        read_only_fields = ['id', 'file_url', 'size', 'content_type', 'uploaded_at', 'is_duplicate']
+        read_only_fields = ['id', 'file_url', 'size', 'content_type', 'extension', 'uploaded_at', 'is_duplicate']
 
     def get_file_url(self, obj):
         """ Build the absolute URL using the physical file. """

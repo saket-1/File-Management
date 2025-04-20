@@ -6,11 +6,11 @@ import { InformationCircleIcon, CircleStackIcon, ArchiveBoxXMarkIcon } from '@he
 // Helper function to format file size (same as in FileList)
 const formatFileSize = (bytes: number | undefined): string => {
     if (bytes === undefined || bytes === null) return 'N/A';
-    if (bytes === 0) return '0 Bytes';
+    // Handle negative savings case gracefully
+    if (bytes <= 0) return '0 Bytes'; 
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    // Handle potential edge case where i might be out of bounds for very large numbers if needed
     if (i >= sizes.length) return `${(bytes / Math.pow(k, sizes.length - 1)).toFixed(1)} ${sizes[sizes.length - 1]}`;
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 };
@@ -34,7 +34,6 @@ export const StorageStats: React.FC = () => {
             </dt>
             <dd className="ml-16 flex items-baseline pb-1">
                 <p className="text-2xl font-semibold text-gray-900">{value ?? '-'}</p>
-                {/* Add more details if needed */}
             </dd>
             {description && (
                 <div className="ml-16 text-xs text-gray-500">{description}</div>
@@ -53,6 +52,9 @@ export const StorageStats: React.FC = () => {
     if (!stats) {
         return <div className="text-center p-4 text-gray-500">Storage stats unavailable.</div>;
     }
+
+    // Calculate duplicate count safely
+    const duplicateReferences = Math.max(0, stats.logical_file_count - stats.physical_file_count);
 
     return (
         <div className="p-4 md:p-6">
@@ -74,7 +76,7 @@ export const StorageStats: React.FC = () => {
                     ArchiveBoxXMarkIcon,
                     'Storage Savings (Deduplication)',
                     formatFileSize(stats.storage_savings_bytes),
-                    `${stats.logical_file_count - stats.physical_file_count} duplicate references`
+                    `${duplicateReferences} duplicate references` // Use safe calculation
                  )}
             </dl>
         </div>

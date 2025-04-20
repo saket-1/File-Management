@@ -14,6 +14,7 @@ interface FileFilters {
   max_size?: number;
   start_date?: string;
   end_date?: string;
+  extension?: string;
 }
 
 // Helper function to format file size
@@ -131,16 +132,16 @@ export const FileList: React.FC<{ key?: number }> = () => {
             </div>
           </div>
 
-          {/* Content Type Filter (Example - could be dropdown) */}
+          {/* Content Type Filter -> Extension Filter */}
           <div>
-            <label htmlFor="content_type" className="block text-sm font-medium text-gray-700">Content Type</label>
+            <label htmlFor="extension" className="block text-sm font-medium text-gray-700">File Extension</label>
             <input
               type="text"
-              name="content_type"
-              id="content_type"
+              name="extension"
+              id="extension"
               className="mt-1 focus:ring-indigo-500 focus:border-indigo-500 block w-full shadow-sm sm:text-sm border-gray-300 rounded-md"
-              placeholder="e.g., application/pdf"
-              value={filters.content_type || ''}
+              placeholder="e.g., pdf, txt, jpg"
+              value={filters.extension || ''}
               onChange={handleFilterChange}
             />
           </div>
@@ -251,7 +252,9 @@ export const FileList: React.FC<{ key?: number }> = () => {
                 <tr key={file.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 max-w-xs truncate" title={file.original_name}>{file.original_name}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatFileSize(file.size)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate" title={file.content_type}>{file.content_type}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 max-w-xs truncate uppercase" title={file.content_type}>
+                    {file.extension || 'N/A'} 
+                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(file.uploaded_at).toLocaleString()}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
                     <a href={file.file_url} target="_blank" rel="noopener noreferrer" download className="text-indigo-600 hover:text-indigo-900 inline-flex items-center" title="Download">

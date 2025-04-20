@@ -52,7 +52,9 @@ function App() {
       </footer>
 
       {/* React Query DevTools - only renders in development */}
-      <ReactQueryDevtools initialIsOpen={false} />
+      {process.env.NODE_ENV === 'development' && (
+        <ReactQueryDevtools initialIsOpen={false} />
+      )}
     </div>
   );
 }

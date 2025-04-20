@@ -32,7 +32,15 @@ class PhysicalFile(models.Model):
     file = models.FileField(upload_to=physical_file_upload_path)
     size = models.BigIntegerField(editable=False)
     content_type = models.CharField(max_length=255, editable=False) # Store type here too
+    extension = models.CharField(max_length=20, editable=False, blank=True) # Added extension field
     first_uploaded = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        """ Automatically populate extension from filename on save. """
+        if self.file and not self.extension:
+            name, ext = os.path.splitext(self.file.name)
+            self.extension = ext.lstrip('.').lower() # Remove dot and lowercase
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.hash
