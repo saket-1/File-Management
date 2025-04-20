@@ -35,4 +35,4 @@ volumes:
 #   environment:
 #     - POSTGRES_DB=filehub
 #     - POSTGRES_USER=user
-#     - POSTGRES_PASSWORD=password 
+#     - POSTGRES_PASSWORD=password

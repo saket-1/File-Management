@@ -6,6 +6,8 @@ from django.db.models import Sum, Count
 from .models import File, PhysicalFile, calculate_sha256
 from .serializers import FileSerializer
 from .filters import FileFilter
+import os # Import the os module
+from django.conf import settings # To get MEDIA_ROOT if needed (though .path should be absolute)
 
 # Create your views here.
 
@@ -102,37 +104,91 @@ class FileRetrieveDestroyView(generics.RetrieveDestroyAPIView):
     serializer_class = FileSerializer
     # lookup_field = 'id' # or pk, default is pk
 
-    # Overriding destroy to handle physical file cleanup
     def perform_destroy(self, instance):
         """
         Delete the logical file instance.
         If it's the last logical file pointing to the physical file,
-        delete the physical file record and the actual file from storage.
+        delete the physical file record, the actual file from storage,
+        and attempt to clean up the empty parent directory.
         """
         try:
-            # Get the related physical file before deleting the logical instance
             physical_file = instance.physical_file
-            
-            # Delete the logical file instance first
-            super().perform_destroy(instance)
+            should_delete_physical = not File.objects.filter(physical_file=physical_file).exclude(pk=instance.pk).exists()
 
-            # Check if any other logical files reference the same physical file
-            if not File.objects.filter(physical_file=physical_file).exists():
-                # If not, delete the physical file from storage and the database record
-                # Ensure file exists before attempting delete to avoid errors
-                if physical_file.file:
-                    physical_file.file.delete(save=False) # Delete file from storage, False to prevent model save
-                physical_file.delete() # Delete PhysicalFile database record
-                print(f"Deleted physical file: {physical_file.hash}") # Optional logging
+            if should_delete_physical:
+                # Get the full path before deleting the file object
+                try:
+                    physical_file_path = physical_file.file.path
+                except ValueError:
+                    # Handle cases where the file might already be missing from storage
+                    physical_file_path = None 
+                except Exception as e:
+                    print(f"Error getting physical file path for {physical_file.pk}: {e}")
+                    physical_file_path = None
 
+            # Delete the logical file instance first (this might trigger signals if any)
+            super().perform_destroy(instance) 
+
+            # Now, handle physical file and directory cleanup if necessary
+            if should_delete_physical:
+                # Delete the physical file from storage if path was found
+                if physical_file_path and physical_file.file and os.path.exists(physical_file_path):
+                    try:
+                        physical_file.file.delete(save=False) # Delete file from storage
+                        print(f"Deleted physical file from storage: {physical_file_path}")
+                    except Exception as e:
+                        print(f"Error deleting physical file from storage {physical_file_path}: {e}")
+                        physical_file_path = None # Cannot attempt dir cleanup if file delete failed
+                
+                # Delete PhysicalFile database record AFTER storage deletion attempt
+                try:
+                    physical_file.delete() 
+                    print(f"Deleted PhysicalFile record: PK {physical_file.pk}, Hash {physical_file.hash}")
+                except Exception as e:
+                     print(f"Error deleting PhysicalFile record {physical_file.pk}: {e}")
+                     # Decide if we should still attempt directory cleanup - probably not if DB delete failed.
+                     physical_file_path = None 
+
+                # Attempt to remove the parent directory if file deletion was successful
+                if physical_file_path:
+                    try:
+                        directory_path = os.path.dirname(physical_file_path)
+                        prefix_dir_path = None # Initialize prefix path
+                        if os.path.exists(directory_path) and not os.listdir(directory_path):
+                            prefix_dir_path = os.path.dirname(directory_path) # Get prefix path before removing hash dir
+                            os.rmdir(directory_path)
+                            print(f"Removed empty hash directory: {directory_path}")
+                            
+                            # Now, check and remove the prefix directory if it's empty
+                            if prefix_dir_path and os.path.exists(prefix_dir_path) and not os.listdir(prefix_dir_path):
+                                try:
+                                    os.rmdir(prefix_dir_path)
+                                    print(f"Removed empty prefix directory: {prefix_dir_path}")
+                                except OSError as e_prefix:
+                                    print(f"Could not remove prefix directory {prefix_dir_path}: {e_prefix}")
+                                except Exception as e_prefix_general:
+                                    print(f"Error during prefix directory cleanup {prefix_dir_path}: {e_prefix_general}")
+                                    
+                    except OSError as e:
+                        # Directory might not be empty, or permission error
+                        print(f"Could not remove hash directory {directory_path}: {e}")
+                    except Exception as e:
+                         print(f"Error during directory cleanup for {directory_path}: {e}")
+
+        except PhysicalFile.DoesNotExist:
+            # The physical file was already deleted somehow, ensure logical is gone
+             print(f"PhysicalFile not found for logical file {instance.pk}, ensuring logical delete completes.")
+             if File.objects.filter(pk=instance.pk).exists():
+                 super().perform_destroy(instance)
         except Exception as e:
-            # Log the error or handle appropriately
-            print(f"Error during custom destroy for File {instance.id}: {e}")
-            # Consider raising the exception again or returning an error response
-            # depending on desired behavior if cleanup fails.
-            # For now, we let the logical file deletion succeed even if cleanup fails.
-            # If the super().perform_destroy() was already called, the logical file is gone.
-            pass
+            print(f"General error during custom destroy for File {instance.id}: {e}")
+            # Ensure logical file deletion still proceeds if possible
+            if File.objects.filter(pk=instance.pk).exists():
+                try:
+                    super().perform_destroy(instance)
+                except Exception as final_e:
+                     print(f"Failed to ensure logical file deletion after error: {final_e}")
+            # Re-raise the original error maybe? Or log it.
 
 # New View for Storage Statistics
 class StorageStatsView(views.APIView):
