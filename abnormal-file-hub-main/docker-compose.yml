@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    command: gunicorn core.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./backend:/app
+      - ./backend/data:/app/data
+      - ./backend/media:/app/media
+      - ./backend/staticfiles:/app/staticfiles
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./backend/.env.dev
+    depends_on:
+      - db  # Assuming a separate DB service might be added later
+
+  frontend:
+    build: ./frontend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Avoids overwriting node_modules by local mount
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CHOKIDAR_USEPOLLING=true # For HMR in Docker
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data: # Example volume for a potential future Postgres DB
+
+# Placeholder for DB service if needed later, e.g., Postgres
+# db:
+#   image: postgres:13
+#   volumes:
+#     - postgres_data:/var/lib/postgresql/data/
+#   environment:
+#     - POSTGRES_DB=filehub
+#     - POSTGRES_USER=user
+#     - POSTGRES_PASSWORD=password 
