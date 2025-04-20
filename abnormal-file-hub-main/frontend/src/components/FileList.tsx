@@ -1,145 +1,99 @@
 import React from 'react';
-import { fileService } from '../services/fileService';
-import { File as FileType } from '../types/file';
-import { DocumentIcon, TrashIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getFiles, deleteFile, ApiFile } from '../services/api';
+import { ArrowDownTrayIcon, TrashIcon } from '@heroicons/react/24/outline';
 
-export const FileList: React.FC = () => {
+// Helper function to format file size
+const formatFileSize = (bytes: number): string => {
+  if (bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
+export const FileList: React.FC<{ key?: number }> = () => {
   const queryClient = useQueryClient();
 
-  // Query for fetching files
-  const { data: files, isLoading, error } = useQuery({
+  // Query to fetch files
+  const { data: files, isLoading, error } = useQuery<ApiFile[], Error>({
     queryKey: ['files'],
-    queryFn: fileService.getFiles,
+    queryFn: getFiles,
   });
 
-  // Mutation for deleting files
-  const deleteMutation = useMutation({
-    mutationFn: fileService.deleteFile,
+  // Mutation to delete a file
+  const deleteMutation = useMutation<void, Error, string>({
+    mutationFn: deleteFile,
     onSuccess: () => {
+      // Invalidate and refetch the files query on success
       queryClient.invalidateQueries({ queryKey: ['files'] });
     },
+    // Optional: Add onError handling
+    // onError: (err) => { alert(`Error deleting file: ${err.message}`); }
   });
 
-  // Mutation for downloading files
-  const downloadMutation = useMutation({
-    mutationFn: ({ fileUrl, filename }: { fileUrl: string; filename: string }) =>
-      fileService.downloadFile(fileUrl, filename),
-  });
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteMutation.mutateAsync(id);
-    } catch (err) {
-      console.error('Delete error:', err);
-    }
-  };
-
-  const handleDownload = async (fileUrl: string, filename: string) => {
-    try {
-      await downloadMutation.mutateAsync({ fileUrl, filename });
-    } catch (err) {
-      console.error('Download error:', err);
+  const handleDelete = (fileId: string) => {
+    if (window.confirm('Are you sure you want to delete this file?')) {
+      deleteMutation.mutate(fileId);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-gray-200 rounded w-1/4"></div>
-          <div className="space-y-3">
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
-            <div className="h-8 bg-gray-200 rounded"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="text-center p-4">Loading files...</div>;
   }
 
   if (error) {
-    return (
-      <div className="p-6">
-        <div className="bg-red-50 border-l-4 border-red-400 p-4">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg
-                className="h-5 w-5 text-red-400"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm text-red-700">Failed to load files. Please try again.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <div className="text-center p-4 text-red-600">Error loading files: {error.message}</div>;
+  }
+
+  if (!files || files.length === 0) {
+    return <div className="text-center p-4 text-gray-500">No files uploaded yet.</div>;
   }
 
   return (
-    <div className="p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Uploaded Files</h2>
-      {!files || files.length === 0 ? (
-        <div className="text-center py-12">
-          <DocumentIcon className="mx-auto h-12 w-12 text-gray-400" />
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No files</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Get started by uploading a file
-          </p>
-        </div>
-      ) : (
-        <div className="mt-6 flow-root">
-          <ul className="-my-5 divide-y divide-gray-200">
-            {files.map((file) => (
-              <li key={file.id} className="py-4">
-                <div className="flex items-center space-x-4">
-                  <div className="flex-shrink-0">
-                    <DocumentIcon className="h-8 w-8 text-gray-400" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {file.original_filename}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      {file.file_type} • {(file.size / 1024).toFixed(2)} KB
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Uploaded {new Date(file.uploaded_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => handleDownload(file.file, file.original_filename)}
-                      disabled={downloadMutation.isPending}
-                      className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
-                    >
-                      <ArrowDownTrayIcon className="h-4 w-4 mr-1" />
-                      Download
-                    </button>
-                    <button
-                      onClick={() => handleDelete(file.id)}
-                      disabled={deleteMutation.isPending}
-                      className="inline-flex items-center px-3 py-2 border border-transparent shadow-sm text-sm leading-4 font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                    >
-                      <TrashIcon className="h-4 w-4 mr-1" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+    <div className="overflow-x-auto">
+      <h2 className="text-xl font-semibold mb-4 px-4 pt-4">Uploaded Files</h2>
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Size</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Uploaded At</th>
+            <th scope="col" className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {files.map((file) => (
+            <tr key={file.id}>
+              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{file.name}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{formatFileSize(file.size)}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{file.content_type}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(file.uploaded_at).toLocaleString()}</td>
+              <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium space-x-2">
+                <a
+                  href={file.file_url} // Use the direct file URL from the backend
+                  target="_blank"      // Open in new tab
+                  rel="noopener noreferrer"
+                  download // Suggests download, browser behavior may vary
+                  className="text-indigo-600 hover:text-indigo-900 inline-flex items-center"
+                  title="Download"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5" aria-hidden="true" />
+                </a>
+                <button
+                  onClick={() => handleDelete(file.id)}
+                  disabled={deleteMutation.isPending && deleteMutation.variables === file.id}
+                  className={`text-red-600 hover:text-red-900 disabled:text-gray-400 disabled:cursor-not-allowed inline-flex items-center ${deleteMutation.isPending && deleteMutation.variables === file.id ? 'animate-pulse' : ''}`}
+                  title="Delete"
+                >
+                  <TrashIcon className="h-5 w-5" aria-hidden="true" />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }; 
